@@ -74,7 +74,7 @@ static struct option long_options[] =
 int main(int argc, char *argv[]) {
     int c;
 
-    boolean valid_option = FALSE;
+    int valid_option = 0;
 
     while (1) {
 
@@ -106,19 +106,19 @@ int main(int argc, char *argv[]) {
 
             case 'a':
                 printf("option -a for `%s' \n", optarg);
-                valid_option = TRUE;
+                valid_option = 1;
 
                 break;
 
             case 'l':
                 printf("option -l for `%s' \n", optarg);
-                valid_option = TRUE;
+                valid_option = 1;
 
                 break;
 
             case 'd':
                 printf("option -d for `%s' \n", optarg);
-                valid_option = TRUE;
+                valid_option = 1;
 
                 break;
 
