@@ -1,134 +1,246 @@
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <getopt.h>
+#include <strings.h>
 
 #ifdef _WIN32
  #include <windows.h>
 #endif
 
-#include "version.h"
 #include "types.h"
 #include "license.h"
+#include "rxarmain.h"
+#include "rxaradd.h"
+#include "rxarlist.h"
+#include "rxardel.h"
 
-static void help() {
-    char *helpMessage =
-            "\n"
-            "cREXX " CREXX_VERSION " Archiver\n"
-            "Usage   : rxar [options] library-name rxbin-file...\n"
-            "Options :\n"
+#include "rxlntest.h"
 
-            "      --license   Display Copyright & License information.\n"
-            "  -h  --help      Display this usage information.\n"
-            "  -a  --add       Add binary to library.\n"
-            "  -l  --list      List content of library.\n"
-            "  -d  --delete    Delete binary from library.\n"
-            "  -v  --verbose   Enable verbose output.\n";
+// internal functions
+static ARCHIVE_ACTION parseOptions(int argc, char *argv[], const struct option *options,
+                                   char **libraryPath,  char **libraryName, char **libraryExtension);
 
-    printf("%s", helpMessage);
-}
+static BOOL           fileNameHasExtension(const char *fileName);
+static const char    *getFileNameExtension(const char *fileName);
 
-static void error_and_exit(int rc, char *message) {
-    fprintf(stderr, "ERROR: %s - try \"rxdas -h\"\n", message);
-    exit(rc);
-}
+static void           handleLibraryName(const char* inputName,
+                                        char **libraryPath, char **libraryName, char **libraryExtension);
 
 
 
+// global variables
+static BOOL verboseFlag = FALSE;
+
+// main function
 int main(int argc, char *argv[]) {
-    int c;
 
-    BOOL verbose_flag = FALSE;
-    BOOL license_flag = FALSE;
-    BOOL valid_option = FALSE;
+    int rc = 0;
 
-    struct option long_options[] =
-            {
-                    {"license", no_argument,            &license_flag, TRUE},
-                    {"verbose", no_argument,       0,         'v'},
-                    {"help",    no_argument,       0,         'h'},
-                    {"add",     required_argument, 0,         'a'},
-                    {"list",    required_argument, 0,         'l'},
-                    {"delete",  required_argument, 0,         'd'},
-                    {0, 0, 0, 0}
-            };
+    ARCHIVE_ACTION archiveAction;
+    char          *libraryPath;
+    char          *libraryName;
+    char          *libraryExtension;
 
-    while (1) {
-        int option_index = 0;
+    archiveAction = parseOptions(argc, argv, archiverOptions,
+                                 &libraryPath, &libraryName, &libraryExtension);
 
-        c = getopt_long(argc, argv, "vha:l:d:",
-                        long_options, &option_index);
+    switch (archiveAction) {
+        case ADD:
+            if (verboseFlag) {
+                fprintf(stdout, "Adding binaries to %s \n", libraryName);
+            }
 
-        /* End of the options? */
-        if (c == -1)
+            rc = addBinaries(libraryName);
             break;
 
-        switch (c) {
-            case 0:
+        case DELETE:
+            if (verboseFlag) {
+                fprintf(stdout, "Deleting binaries from %s \n", libraryName);
+            }
 
-                printf("option -a for `%s' \n", optarg);
-                /* If this option set a flag, do nothing else now. */
-                if (long_options[option_index].flag != 0)
-                    break;
+            rc = deleteBinaries(libraryName);
+            break;
 
-                printf ("WHAT?! \n");
+        case LIST:
+            if (verboseFlag) {
+                fprintf(stdout, "List binaries in %s \n", libraryName);
+            }
 
-                break;
+            rc = listBinaries(libraryName);
+            break;
 
+        case LICENSE:
+            license();
+            break;
+
+        case HELP:
+            help();
+            break;
+
+        default:
+            error_and_exit(-1, "Unknown option selected.");
+    }
+
+   return rc;
+
+    if (optind < argc) {
+
+        int    index = 0;
+        char **binaries = calloc(argc - optind, sizeof(char *) );
+
+        printf("further elements: ");
+
+        while (optind < argc) {
+            binaries[index] = argv[optind];
+
+            index++;
+            optind++;
+        }
+
+        addBinaries(binaries);
+
+    }
+
+
+    exit(0);
+}
+
+static ARCHIVE_ACTION
+parseOptions(int argc, char *argv[], const struct option *options,
+             char **libraryPath,  char **libraryName, char **libraryExtension) {
+
+    ARCHIVE_ACTION action = UNKNOWN;
+
+    while (TRUE) {
+        int optionIndex = 0;
+
+        int option = getopt_long(argc, argv, "vha:l:d:",
+                                 options, &optionIndex);
+
+        if (option == -1)
+            break;
+
+        switch (option) {
             case 'a':
-                printf("option -a for `%s' \n", optarg);
-                valid_option = 1;
+                handleLibraryName(optarg, libraryPath, libraryName, libraryExtension);
 
-                break;
-
-            case 'l':
-                printf("option -l for `%s' \n", optarg);
-                valid_option = 1;
-
+                action = ADD;
                 break;
 
             case 'd':
-                printf("option -d for `%s' \n", optarg);
-                valid_option = 1;
+                handleLibraryName(optarg, libraryPath, libraryName, libraryExtension);
 
+                action = DELETE;
                 break;
 
+            case 'l':
+                handleLibraryName(optarg, libraryPath, libraryName, libraryExtension);
+
+                action = LIST;
+                break;
+
+            case 't':
+                if (verboseFlag) {
+                    fprintf(stdout, "Calling cREXX Linker test function. \n");
+                }
+
+                test(optarg);
+                exit (0);
+
             case 'v':
-                verbose_flag = 1;
+                verboseFlag = 1;
+                break;
+
+            case 'c':
+                action = LICENSE;
                 break;
 
             case 'h':
             case '?':
-                help();
-                exit(0);
+                action = HELP;
+                break;
 
             default:
                 abort();
         }
     }
 
-    if (verbose_flag) {
-        printf("FOO> verbose output activated\n");
+    return action;
+}
+
+static BOOL fileNameHasExtension(const char *fileName) {
+    const char *dot = strrchr(fileName, '.');
+    if(!dot || dot == fileName) return FALSE;
+    return TRUE;
+}
+
+static const char *getFileNameExtension(const char *fileName) {
+    const char *dot = strrchr(fileName, '.');
+    if(!dot || dot == fileName) return "";
+    return dot + 1;
+}
+
+static void handleLibraryName(const char *inputName, char **libraryPath, char **libraryName, char **libraryExtension) {
+
+    size_t pathLength, nameLength, extLength;
+
+    const char *pathEndPtr, *baseName;
+
+    if (inputName == NULL) {
+        error_and_exit(-42, "Internal error while building library name.");
     }
 
-    if (license_flag) {
-        license();
-        exit (0);
-    }
+    // find last file separator
+    pathEndPtr = strrchr(inputName, FILE_SEPARATOR);
 
-    if (!valid_option) {
-        printf("No valid option specified. \n");
-        help();
-    }
+    // path present
+    if (pathEndPtr > 0) {
 
+        // save pointer to basename
+        baseName = pathEndPtr + 1;
 
+        pathLength = baseName - inputName;
 
-    if (optind < argc) {
-        printf("further elements: ");
-        while (optind < argc) {
-            printf("%s ", argv[optind++]);
+        // copy library path
+        *libraryPath = malloc(pathLength + 1 /* NL */);
+        snprintf(*libraryPath, pathLength + 1, "%s", inputName);
+
+        if (verboseFlag) {
+            fprintf(stdout, "libraryPath: '%s' \n", *libraryPath);
         }
-        putchar('\n');
+    } else {
+        baseName = inputName;
     }
 
-    exit(0);
+    nameLength = strlen(baseName);
+    if (fileNameHasExtension(baseName)) {
+        nameLength = nameLength - ( strlen(getFileNameExtension(baseName)) + 1 /* the dot */) ;
+    }
+
+    // copy library name
+    *libraryName = malloc(nameLength + 1 /* NL */);
+    snprintf(*libraryName, nameLength + 1, "%s", baseName);
+
+    if (verboseFlag) {
+        fprintf(stdout, "libraryName: '%s' \n", *libraryName);
+    }
+
+    if (fileNameHasExtension(baseName)) {
+        extLength = strlen(getFileNameExtension(baseName)) + 1 /* the dot */;
+    } else {
+        extLength = ARCHIVE_EXTENSION_LENGTH;
+    }
+
+    // copy library extension
+    *libraryExtension = malloc(extLength + 1 /* NL */);
+    if (fileNameHasExtension(baseName)) {
+        snprintf(*libraryExtension, extLength + 1, "%s", getFileNameExtension(baseName));
+    } else {
+        snprintf(*libraryExtension, extLength + 1, "%s", ARCHIVE_EXTENSION);
+    }
+
+    if (verboseFlag) {
+        fprintf(stdout, "libraryExtension: '%s' \n", *libraryExtension);
+    }
+
 }
