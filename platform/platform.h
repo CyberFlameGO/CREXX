@@ -25,6 +25,14 @@ typedef long rxinteger;
 typedef long long rxinteger;
 #endif
 
+typedef struct S_VFILE {
+    char *path;
+    char *basename;
+    char *extension;
+    char *fullname;
+    int   exists;
+} VFILE;
+
 /*
  * Read a file into a returned buffer
  *
@@ -39,5 +47,11 @@ char* file2buf(FILE *file);
  * mode - is the fopen() file mode
  */
 FILE *openfile(char *name, char *type, char *dir, char *mode);
+
+/*
+ * Function returns the extension part of a file name, if present.
+ * Otherwise, it returs NULL.
+ */
+const char *fnext(const char *file_name);
 
 #endif //CREXX_PLATFORM_H

@@ -1,6 +1,8 @@
 #ifndef CREXX_RXARADD_H
 #define CREXX_RXARADD_H
 
-int addBinaries(char *libraryName);
+#include "platform.h"
+
+int addBinaries(VFILE *library, VFILE *binaries[]);
 
 #endif //CREXX_RXARADD_H

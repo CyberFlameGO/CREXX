@@ -55,3 +55,29 @@ FILE *openfile(char *name, char *type, char *dir, char *mode) {
 
     return stream;
 }
+
+/*
+ * Function checks wether the file name contains an extension or not.
+ */
+int filename_has_ext(const char *file_name) {
+    const char *dot = strrchr(file_name, '.');
+
+    if(!dot || dot == file_name) {
+        return 0;
+    } else {
+        return 1;
+    }
+}
+/*
+ * Function returns the extension part of a file name, if present.
+ * Otherwise, it returs NULL.
+ */
+const char *fnext(const char *file_name) {
+    const char *dot = strrchr(file_name, '.');
+
+    if(!dot || dot == file_name) {
+        return NULL;
+    } else {
+        return dot + 1;
+    }
+}

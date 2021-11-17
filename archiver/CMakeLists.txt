@@ -11,6 +11,6 @@ add_executable(rxar
         rxardel.c   rxardel.h
         rxlntest.c  rxlntest.h)
 
-target_link_libraries(rxar common platform)
+target_link_libraries(rxar avl_tree common platform)
 
 target_include_directories(rxar PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ../avl_tree ../assembler ../platform)

@@ -2,10 +2,7 @@
 #include <stdio.h>
 #include <getopt.h>
 #include <strings.h>
-
-#ifdef _WIN32
- #include <windows.h>
-#endif
+#include <unistd.h>
 
 #include "types.h"
 #include "license.h"
@@ -14,17 +11,13 @@
 #include "rxarlist.h"
 #include "rxardel.h"
 
+#include "platform.h"
+
 #include "rxlntest.h"
 
 // internal functions
-static ARCHIVE_ACTION parseOptions(int argc, char *argv[], const struct option *options,
-                                   char **libraryPath,  char **libraryName, char **libraryExtension);
-
-static BOOL           fileNameHasExtension(const char *fileName);
-static const char    *getFileNameExtension(const char *fileName);
-
-static void           handleLibraryName(const char* inputName,
-                                        char **libraryPath, char **libraryName, char **libraryExtension);
+static ARCHIVE_ACTION parseOptions(int argc, char *argv[], const struct option *options, VFILE *library);
+static void           createVFile(const char* inputName, VFILE *library);
 
 
 
@@ -36,37 +29,34 @@ int main(int argc, char *argv[]) {
 
     int rc = 0;
 
-    ARCHIVE_ACTION archiveAction;
-    char          *libraryPath;
-    char          *libraryName;
-    char          *libraryExtension;
+    ARCHIVE_ACTION  archiveAction;
+    VFILE           library;
 
-    archiveAction = parseOptions(argc, argv, archiverOptions,
-                                 &libraryPath, &libraryName, &libraryExtension);
+    archiveAction = parseOptions(argc, argv, archiverOptions, &library);
 
     switch (archiveAction) {
         case ADD:
             if (verboseFlag) {
-                fprintf(stdout, "Adding binaries to %s \n", libraryName);
+                fprintf(stdout, "Adding binaries to %s \n", library.basename);
             }
 
-            rc = addBinaries(libraryName);
+            rc = addBinaries(&library, NULL);
             break;
 
         case DELETE:
             if (verboseFlag) {
-                fprintf(stdout, "Deleting binaries from %s \n", libraryName);
+                fprintf(stdout, "Deleting binaries from %s \n", library.basename);
             }
 
-            rc = deleteBinaries(libraryName);
+            rc = deleteBinaries(library.basename);
             break;
 
         case LIST:
             if (verboseFlag) {
-                fprintf(stdout, "List binaries in %s \n", libraryName);
+                fprintf(stdout, "List binaries in %s \n", library.basename);
             }
 
-            rc = listBinaries(libraryName);
+            rc = listBinaries(library.basename);
             break;
 
         case LICENSE:
@@ -97,7 +87,7 @@ int main(int argc, char *argv[]) {
             optind++;
         }
 
-        addBinaries(binaries);
+        addBinaries(binaries, NULL);
 
     }
 
@@ -106,15 +96,14 @@ int main(int argc, char *argv[]) {
 }
 
 static ARCHIVE_ACTION
-parseOptions(int argc, char *argv[], const struct option *options,
-             char **libraryPath,  char **libraryName, char **libraryExtension) {
+parseOptions(int argc, char *argv[], const struct option *options, VFILE *library) {
 
     ARCHIVE_ACTION action = UNKNOWN;
 
     while (TRUE) {
         int optionIndex = 0;
 
-        int option = getopt_long(argc, argv, "vha:l:d:",
+        int option = getopt_long(argc, argv, "v?ha:l:d:",
                                  options, &optionIndex);
 
         if (option == -1)
@@ -122,21 +111,27 @@ parseOptions(int argc, char *argv[], const struct option *options,
 
         switch (option) {
             case 'a':
-                handleLibraryName(optarg, libraryPath, libraryName, libraryExtension);
+                createVFile(optarg, library);
 
-                action = ADD;
+                if (action == UNKNOWN)
+                    action = ADD;
+
                 break;
 
             case 'd':
-                handleLibraryName(optarg, libraryPath, libraryName, libraryExtension);
+                createVFile(optarg, library);
 
-                action = DELETE;
+                if (action == UNKNOWN)
+                    action = DELETE;
+
                 break;
 
             case 'l':
-                handleLibraryName(optarg, libraryPath, libraryName, libraryExtension);
+                createVFile(optarg, library);
 
-                action = LIST;
+                if (action == UNKNOWN)
+                    action = LIST;
+
                 break;
 
             case 't':
@@ -152,12 +147,18 @@ parseOptions(int argc, char *argv[], const struct option *options,
                 break;
 
             case 'c':
-                action = LICENSE;
+
+                if (action == UNKNOWN)
+                    action = LICENSE;
+
                 break;
 
             case 'h':
             case '?':
-                action = HELP;
+
+                if (action == UNKNOWN)
+                    action = HELP;
+
                 break;
 
             default:
@@ -168,21 +169,9 @@ parseOptions(int argc, char *argv[], const struct option *options,
     return action;
 }
 
-static BOOL fileNameHasExtension(const char *fileName) {
-    const char *dot = strrchr(fileName, '.');
-    if(!dot || dot == fileName) return FALSE;
-    return TRUE;
-}
+static void createVFile(const char *inputName, VFILE *library) {
 
-static const char *getFileNameExtension(const char *fileName) {
-    const char *dot = strrchr(fileName, '.');
-    if(!dot || dot == fileName) return "";
-    return dot + 1;
-}
-
-static void handleLibraryName(const char *inputName, char **libraryPath, char **libraryName, char **libraryExtension) {
-
-    size_t pathLength, nameLength, extLength;
+    size_t pathLength, nameLength, extLength, fullLength;
 
     const char *pathEndPtr, *baseName;
 
@@ -202,45 +191,54 @@ static void handleLibraryName(const char *inputName, char **libraryPath, char **
         pathLength = baseName - inputName;
 
         // copy library path
-        *libraryPath = malloc(pathLength + 1 /* NL */);
-        snprintf(*libraryPath, pathLength + 1, "%s", inputName);
+        library->path = calloc(1, pathLength + 1 /* EOS */);
+        snprintf(library->path, pathLength, "%s", inputName);
 
-        if (verboseFlag) {
-            fprintf(stdout, "libraryPath: '%s' \n", *libraryPath);
-        }
     } else {
+        library->path = calloc(1, 3);
+        snprintf(library->path, 2, "%c%c", '.', FILE_SEPARATOR);
+
         baseName = inputName;
     }
 
     nameLength = strlen(baseName);
-    if (fileNameHasExtension(baseName)) {
-        nameLength = nameLength - ( strlen(getFileNameExtension(baseName)) + 1 /* the dot */) ;
+    if ((baseName)) {
+        if (fnext(baseName)) {
+            nameLength = nameLength - (strlen(fnext(baseName)) + 1 /* the dot */) ;
+        }
     }
 
     // copy library name
-    *libraryName = malloc(nameLength + 1 /* NL */);
-    snprintf(*libraryName, nameLength + 1, "%s", baseName);
+    library->basename = calloc(1, nameLength + 1 /* EOS */);
+    snprintf(library->basename, nameLength, "%s", baseName);
 
-    if (verboseFlag) {
-        fprintf(stdout, "libraryName: '%s' \n", *libraryName);
-    }
-
-    if (fileNameHasExtension(baseName)) {
-        extLength = strlen(getFileNameExtension(baseName)) + 1 /* the dot */;
+    if (fnext(baseName)) {
+        extLength = strlen(fnext(baseName)) + 1 /* the dot */;
     } else {
         extLength = ARCHIVE_EXTENSION_LENGTH;
     }
 
     // copy library extension
-    *libraryExtension = malloc(extLength + 1 /* NL */);
-    if (fileNameHasExtension(baseName)) {
-        snprintf(*libraryExtension, extLength + 1, "%s", getFileNameExtension(baseName));
+    library->extension = calloc(1, extLength + 1 /* EOS */);
+    if (fnext(baseName)) {
+        snprintf(library->extension, extLength, "%s", fnext(baseName));
     } else {
-        snprintf(*libraryExtension, extLength + 1, "%s", ARCHIVE_EXTENSION);
+        snprintf(library->extension, extLength, "%s", ARCHIVE_EXTENSION);
+    }
+
+    // creating full name
+    fullLength = pathLength + nameLength + extLength;
+    library->fullname = calloc( 1, fullLength + 1 /* EOS */);
+    snprintf(library->fullname, fullLength, "%s%s.%s", library->path, library->basename, library->extension);
+
+    if (access(library->fullname, F_OK) == 0) {
+        library->exists = TRUE;
+    } else {
+        library->exists = FALSE;
     }
 
     if (verboseFlag) {
-        fprintf(stdout, "libraryExtension: '%s' \n", *libraryExtension);
+        fprintf(stdout, "VFILE created for '%s' \n", library->fullname);
     }
 
 }
