@@ -174,6 +174,7 @@ static void createVFile(const char *inputName, VFILE *library) {
     size_t pathLength, nameLength, extLength, fullLength;
 
     const char *pathEndPtr, *baseName ;
+    char *cpyPtr;
 
     if (inputName == NULL) {
         error_and_exit(-42, "Internal error while building library name.");
@@ -192,7 +193,7 @@ static void createVFile(const char *inputName, VFILE *library) {
 
         // copy library path
         library->path = calloc(1, pathLength + 1 /* EOS */);
-        snprintf(library->path, pathLength + 1, "%s", inputName);
+        memcpy(library->path, inputName, pathLength);
 
     } else {
         // to hold "./"
@@ -213,7 +214,7 @@ static void createVFile(const char *inputName, VFILE *library) {
 
     // copy library name
     library->basename = calloc(1, nameLength + 1 /* EOS */);
-    snprintf(library->basename, nameLength + 1, "%s", baseName);
+    memccpy(library->basename, baseName, '\0', nameLength);
 
     if (fnext(baseName)) {
         extLength = strlen(fnext(baseName)) + 1 /* the dot */;
@@ -224,17 +225,29 @@ static void createVFile(const char *inputName, VFILE *library) {
     // copy library extension
     library->extension = calloc(1, extLength + 1 /* EOS */);
     if (fnext(baseName)) {
-        snprintf(library->extension, extLength + 1, "%s", fnext(baseName));
+        memccpy(library->extension, fnext(baseName), '\0', extLength);
     } else {
-        snprintf(library->extension, extLength + 1, "%s", ARCHIVE_EXTENSION);
+        memccpy(library->extension, ARCHIVE_EXTENSION, '\0', extLength);
     }
 
     // creating full name
     fullLength = pathLength + nameLength + extLength;
+
     library->fullname = calloc( 1, fullLength + 1 /* EOS */);
-    snprintf(library->fullname, fullLength + 1, "%s%s.%s", library->path,
-                                                                      library->basename,
-                                                                      library->extension);
+
+    // needed for arithmetics
+    cpyPtr = library->fullname;
+
+    memcpy(cpyPtr, library->path, pathLength);
+    cpyPtr += pathLength;
+
+    memcpy(cpyPtr, library->basename, nameLength);
+    cpyPtr += nameLength;
+
+    memcpy(cpyPtr, ".", 1);
+    cpyPtr++;
+
+    memcpy(cpyPtr, library->extension, extLength);
 
     if (access(library->fullname, F_OK) == 0) {
         library->exists = TRUE;
