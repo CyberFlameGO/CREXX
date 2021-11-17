@@ -173,7 +173,7 @@ static void createVFile(const char *inputName, VFILE *library) {
 
     size_t pathLength, nameLength, extLength, fullLength;
 
-    const char *pathEndPtr, *baseName;
+    const char *pathEndPtr, *baseName ;
 
     if (inputName == NULL) {
         error_and_exit(-42, "Internal error while building library name.");
@@ -185,18 +185,21 @@ static void createVFile(const char *inputName, VFILE *library) {
     // path present
     if (pathEndPtr > 0) {
 
-        // save pointer to basename
+        // save the real pointer to basename
         baseName = pathEndPtr + 1;
 
         pathLength = baseName - inputName;
 
         // copy library path
         library->path = calloc(1, pathLength + 1 /* EOS */);
-        snprintf(library->path, pathLength, "%s", inputName);
+        snprintf(library->path, pathLength + 1, "%s", inputName);
 
     } else {
-        library->path = calloc(1, 3);
-        snprintf(library->path, 2, "%c%c", '.', FILE_SEPARATOR);
+        // to hold "./"
+        pathLength = 2;
+
+        library->path = calloc(1, pathLength + 1 /* EOS */);
+        snprintf(library->path, pathLength + 1, "%c%c", '.', FILE_SEPARATOR);
 
         baseName = inputName;
     }
@@ -210,7 +213,7 @@ static void createVFile(const char *inputName, VFILE *library) {
 
     // copy library name
     library->basename = calloc(1, nameLength + 1 /* EOS */);
-    snprintf(library->basename, nameLength, "%s", baseName);
+    snprintf(library->basename, nameLength + 1, "%s", baseName);
 
     if (fnext(baseName)) {
         extLength = strlen(fnext(baseName)) + 1 /* the dot */;
@@ -221,15 +224,17 @@ static void createVFile(const char *inputName, VFILE *library) {
     // copy library extension
     library->extension = calloc(1, extLength + 1 /* EOS */);
     if (fnext(baseName)) {
-        snprintf(library->extension, extLength, "%s", fnext(baseName));
+        snprintf(library->extension, extLength + 1, "%s", fnext(baseName));
     } else {
-        snprintf(library->extension, extLength, "%s", ARCHIVE_EXTENSION);
+        snprintf(library->extension, extLength + 1, "%s", ARCHIVE_EXTENSION);
     }
 
     // creating full name
     fullLength = pathLength + nameLength + extLength;
     library->fullname = calloc( 1, fullLength + 1 /* EOS */);
-    snprintf(library->fullname, fullLength, "%s%s.%s", library->path, library->basename, library->extension);
+    snprintf(library->fullname, fullLength + 1, "%s%s.%s", library->path,
+                                                                      library->basename,
+                                                                      library->extension);
 
     if (access(library->fullname, F_OK) == 0) {
         library->exists = TRUE;
