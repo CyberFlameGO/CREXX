@@ -3,6 +3,6 @@
 
 #include "platform.h"
 
-int addBinaries(VFILE *library, VFILE *binaries[]);
+int addBinaries(VFILE *library, VFILE *binaries);
 
 #endif //CREXX_RXARADD_H

@@ -15,10 +15,10 @@
 #include "rxlntest.h"
 
 // internal functions
-static ARCHIVE_ACTION parseOptions(int argc, char *argv[], const struct option *options, VFILE *library);
+static ARCHIVE_ACTION parseOptions(int argc, char *argv[], const struct option *options, VFILE **library);
 
 // global variables
-static BOOL verboseFlag = FALSE;
+BOOL verboseFlag = FALSE;
 
 // main function
 int main(int argc, char *argv[]) {
@@ -26,33 +26,65 @@ int main(int argc, char *argv[]) {
     int rc = 0;
 
     ARCHIVE_ACTION  archiveAction;
-    VFILE           library;
+    VFILE           *library;
 
     archiveAction = parseOptions(argc, argv, archiverOptions, &library);
 
     switch (archiveAction) {
         case ADD:
             if (verboseFlag) {
-                fprintf(stdout, "Adding binaries to %s \n", library.basename);
+                if (library->exists) {
+                    fprintf(stdout, "Adding to existing library '%s'. \n", library->fullname);
+                } else {
+                    fprintf(stdout, "Creating library '%s'. \n", library->fullname);
+                }
             }
 
-            rc = addBinaries(&library, NULL);
+            VFILE *binaries, *current, *last;
+
+            binaries = calloc(1, sizeof(VFILE));
+
+            current = binaries;
+            while (optind < argc) {
+
+                if (!current) {
+                    current = calloc(1, sizeof(VFILE));
+
+                    // insert new VFILE element in last element
+                    last->next = current;
+                }
+                current = vfnew(argv[optind], current, NULL, RXBIN_EXT);
+
+                // find last VFILE
+                while (current->next != NULL) {
+                    current = current->next;
+                }
+
+                // save last VFILE element to insert new one
+                // point to the next free slot
+                last = current;
+                current = last->next;
+
+                optind++;
+            }
+
+            rc = addBinaries(library, binaries);
             break;
 
         case DELETE:
             if (verboseFlag) {
-                fprintf(stdout, "Deleting binaries from %s \n", library.basename);
+                fprintf(stdout, "Deleting binaries from %s \n", library->fullname);
             }
 
-            rc = deleteBinaries(library.basename);
+            rc = deleteBinaries(library->basename);
             break;
 
         case LIST:
             if (verboseFlag) {
-                fprintf(stdout, "List binaries in %s \n", library.basename);
+                fprintf(stdout, "List binaries in %s \n", library->fullname);
             }
 
-            rc = listBinaries(library.basename);
+            rc = listBinaries(library->basename);
             break;
 
         case LICENSE:
@@ -68,28 +100,10 @@ int main(int argc, char *argv[]) {
     }
 
    return rc;
-
-    if (optind < argc) {
-
-        int    index = 0;
-        char **binaries = calloc(argc - optind, sizeof(char *) );
-
-        printf("further elements: ");
-
-        while (optind < argc) {
-            binaries[index] = argv[optind];
-
-            index++;
-            optind++;
-        }
-    }
-
-
-    exit(0);
 }
 
 static ARCHIVE_ACTION
-parseOptions(int argc, char *argv[], const struct option *options, VFILE *library) {
+parseOptions(int argc, char *argv[], const struct option *options, VFILE **library) {
 
     ARCHIVE_ACTION action = UNKNOWN;
 
@@ -104,26 +118,32 @@ parseOptions(int argc, char *argv[], const struct option *options, VFILE *librar
 
         switch (option) {
             case 'a':
-                vfnew(optarg, library, NULL, RXLIB_EXT);
+                if (action == UNKNOWN) {
+                    *library = calloc(1, sizeof(VFILE));
+                    *library = vfnew(optarg, *library, NULL, RXLIB_EXT);
 
-                if (action == UNKNOWN)
                     action = ADD;
+                }
 
                 break;
 
             case 'd':
-                vfnew(optarg, library, NULL, RXLIB_EXT);
+                if (action == UNKNOWN) {
+                    *library = calloc(1, sizeof(VFILE));
+                    *library = vfnew(optarg, *library, NULL, RXLIB_EXT);
 
-                if (action == UNKNOWN)
                     action = DELETE;
+                }
 
                 break;
 
             case 'l':
-                vfnew(optarg, library, NULL, RXLIB_EXT);
+                if (action == UNKNOWN) {
+                    *library = calloc(1, sizeof(VFILE));
+                    *library = vfnew(optarg, *library, NULL, RXLIB_EXT);
 
-                if (action == UNKNOWN)
                     action = LIST;
+                }
 
                 break;
 
@@ -140,7 +160,6 @@ parseOptions(int argc, char *argv[], const struct option *options, VFILE *librar
                 break;
 
             case 'c':
-
                 if (action == UNKNOWN)
                     action = LICENSE;
 
@@ -148,7 +167,6 @@ parseOptions(int argc, char *argv[], const struct option *options, VFILE *librar
 
             case 'h':
             case '?':
-
                 if (action == UNKNOWN)
                     action = HELP;
 

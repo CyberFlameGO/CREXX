@@ -31,15 +31,18 @@ typedef long long rxinteger;
 # define FILE_SEPARATOR '/'
 #endif
 
-typedef struct S_VFILE {
+typedef struct S_VFILE VFILE;
+struct S_VFILE {
     char *path;
     char *basename;
     char *extension;
     char *fullname;
+    int   wildcarded;
     int   exists;
     int   opened;
     FILE *fp;
-} VFILE;
+    VFILE *next;
+};
 
 /*
  * Read a file into a returned buffer
@@ -67,6 +70,8 @@ const char *fnext(const char *file_name);
  * If given file name did not have a path, the optional default path will be used.
  * If the default path is NULL the local directory path './' will be used.
  * If given file name did not have an extension, the default extension will be used.
+ *
+ * If the given file name contains wildcards, a list of VFILEs will be created.
  */
 VFILE* vfnew(const char *inputName, VFILE *vfile, const char *defaultPath, const char *defaultExtension);
 
@@ -77,12 +82,12 @@ VFILE* vfnew(const char *inputName, VFILE *vfile, const char *defaultPath, const
 VFILE* vfopen(VFILE *vfile, char *mode);
 
 /*
- * Function to close a VFILE.
+ * Function to close a single open VFILE.
  */
 void vfclose(VFILE *vfile);
 
 /*
- * Function to close an eventually open file pointer and
+ * Function to close all eventually open file pointer and
  * free all allocated memory for given VFILE structure.
  */
 void vffree(VFILE *vfile);

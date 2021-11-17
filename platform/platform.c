@@ -7,7 +7,18 @@
 #include <string.h>
 #include <unistd.h>
 
+#ifndef _WIN32
+# include <dirent.h>
+# include <glob.h>
+#else
+# include <windows.h>
+# include <fileapi.h>
+#endif
+
+
 #include "platform.h"
+
+static int hasWildcards(const char *fileName);
 
 /*
  * Read a file into a returned buffer
@@ -75,6 +86,11 @@ const char *fnext(const char *file_name) {
 
 /*
  * Function to create the internal VFILE structure from a given input file name.
+ * If given file name did not have a path, the optional default path will be used.
+ * If the default path is NULL the local directory path './' will be used.
+ * If given file name did not have an extension, the default extension will be used.
+ *
+ * If the given file name contains wildcards, a list of VFILEs will be created.
  */
 VFILE* vfnew(const char *inputName, VFILE *vfile, const char *defaultPath, const char *defaultExtension) {
 
@@ -181,6 +197,43 @@ VFILE* vfnew(const char *inputName, VFILE *vfile, const char *defaultPath, const
         vfile->exists = 0;
     }
 
+    if (hasWildcards(vfile->fullname)) {
+
+        VFILE *current;
+
+        current = vfile;
+
+        // mark as wildcarded
+        current->wildcarded = 1;
+
+#ifndef _WIN32
+        int ii;
+
+        glob_t globResult;
+
+        glob(vfile->fullname, GLOB_TILDE, NULL, &globResult);
+
+        for (ii = 0; ii < globResult.gl_pathc; ii++) {
+            current->next = calloc(1, sizeof(VFILE));
+            current->next = vfnew(globResult.gl_pathv[ii], current->next, defaultPath, defaultExtension);
+            current = current->next;
+        }
+#else
+        HANDLE fileHandle;
+        WIN32_FIND_DATA ffd;
+
+        fileHandle = FindFirstFile("./*.rxbin", &ffd);
+
+        if (INVALID_HANDLE_VALUE == fileHandle)
+            printf("Invalid File Handle Value \n");
+
+        do
+        {
+            printf("%s\n", ffd.cFileName);
+        } while (FindNextFile(fileHandle, &ffd) != 0);
+#endif
+    }
+
     return vfile;
 }
 
@@ -202,7 +255,7 @@ VFILE* vfopen(VFILE *vfile, char *mode) {
 }
 
 /*
- * Function to close a VFILE.
+ * Function to close a single open VFILE.
  */
 void vfclose(VFILE *vfile) {
     if (vfile) {
@@ -216,19 +269,19 @@ void vfclose(VFILE *vfile) {
 }
 
 /*
- * Function to close an eventually open file pointer and
+ * Function to close all eventually open file pointer and
  * free all allocated memory for given VFILE structure.
  */
 void vffree(VFILE *vfile) {
-    if (vfile) {
 
+    while(vfile) {
         vfclose(vfile);
 
         if (vfile->path) {
             free(vfile->path);
         }
 
-        if(vfile->basename) {
+        if (vfile->basename) {
             free(vfile->basename);
         }
 
@@ -239,5 +292,28 @@ void vffree(VFILE *vfile) {
         if (vfile->fullname) {
             free(vfile->fullname);
         }
+
+        vfile = vfile->next;
     }
+
+}
+
+static int hasWildcards(const char *fileName) {
+    int hasWildcard;
+
+    char questionMark = '?';
+    char asterisk     = '*';
+    char oBracket     = '[';
+    char cBracket     = ']';
+
+    hasWildcard = strchr(fileName, questionMark) != NULL;
+
+    if (!hasWildcard)
+        hasWildcard = strchr(fileName, asterisk) != NULL;
+    if (!hasWildcard)
+        hasWildcard = strchr(fileName, oBracket) != NULL;
+    if (!hasWildcard)
+        hasWildcard = strchr(fileName, cBracket) != NULL;
+
+    return hasWildcard;
 }
