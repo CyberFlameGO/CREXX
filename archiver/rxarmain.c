@@ -231,7 +231,7 @@ static void createVFile(const char *inputName, VFILE *library) {
     }
 
     // creating full name
-    fullLength = pathLength + nameLength + extLength;
+    fullLength = pathLength + nameLength + extLength + 1 /* the DOT */;
 
     library->fullname = calloc( 1, fullLength + 1 /* EOS */);
 
