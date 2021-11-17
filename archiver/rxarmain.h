@@ -3,15 +3,6 @@
 
 #include "version.h"
 
-#define ARCHIVE_EXTENSION           "rxlib"
-#define ARCHIVE_EXTENSION_LENGTH    5
-
-#ifndef _WIN32
-# define FILE_SEPARATOR  '/'
-#else
-# define FILE_SEPARATOR  '\\'
-#endif
-
 typedef enum ARCHIVE_ACTION {
     ADD, DELETE, LIST, LICENSE, HELP, UNKNOWN
 } ARCHIVE_ACTION;

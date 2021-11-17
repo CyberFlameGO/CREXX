@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <getopt.h>
 #include <strings.h>
-#include <unistd.h>
 
 #include "types.h"
 #include "license.h"
@@ -17,9 +16,6 @@
 
 // internal functions
 static ARCHIVE_ACTION parseOptions(int argc, char *argv[], const struct option *options, VFILE *library);
-static void           createVFile(const char* inputName, VFILE *library);
-
-
 
 // global variables
 static BOOL verboseFlag = FALSE;
@@ -86,9 +82,6 @@ int main(int argc, char *argv[]) {
             index++;
             optind++;
         }
-
-        addBinaries(binaries, NULL);
-
     }
 
 
@@ -111,7 +104,7 @@ parseOptions(int argc, char *argv[], const struct option *options, VFILE *librar
 
         switch (option) {
             case 'a':
-                createVFile(optarg, library);
+                vfnew(optarg, library, NULL, RXLIB_EXT);
 
                 if (action == UNKNOWN)
                     action = ADD;
@@ -119,7 +112,7 @@ parseOptions(int argc, char *argv[], const struct option *options, VFILE *librar
                 break;
 
             case 'd':
-                createVFile(optarg, library);
+                vfnew(optarg, library, NULL, RXLIB_EXT);
 
                 if (action == UNKNOWN)
                     action = DELETE;
@@ -127,7 +120,7 @@ parseOptions(int argc, char *argv[], const struct option *options, VFILE *librar
                 break;
 
             case 'l':
-                createVFile(optarg, library);
+                vfnew(optarg, library, NULL, RXLIB_EXT);
 
                 if (action == UNKNOWN)
                     action = LIST;
@@ -167,96 +160,4 @@ parseOptions(int argc, char *argv[], const struct option *options, VFILE *librar
     }
 
     return action;
-}
-
-static void createVFile(const char *inputName, VFILE *library) {
-
-    size_t pathLength, nameLength, extLength, fullLength;
-
-    const char *pathEndPtr, *baseName ;
-    char *cpyPtr;
-
-    if (inputName == NULL) {
-        error_and_exit(-42, "Internal error while building library name.");
-    }
-
-    // find last file separator
-    pathEndPtr = strrchr(inputName, FILE_SEPARATOR);
-
-    // path present
-    if (pathEndPtr > 0) {
-
-        // save the real pointer to basename
-        baseName = pathEndPtr + 1;
-
-        pathLength = baseName - inputName;
-
-        // copy library path
-        library->path = calloc(1, pathLength + 1 /* EOS */);
-        memcpy(library->path, inputName, pathLength);
-
-    } else {
-        // to hold "./"
-        pathLength = 2;
-
-        library->path = calloc(1, pathLength + 1 /* EOS */);
-        snprintf(library->path, pathLength + 1, "%c%c", '.', FILE_SEPARATOR);
-
-        baseName = inputName;
-    }
-
-    nameLength = strlen(baseName);
-    if ((baseName)) {
-        if (fnext(baseName)) {
-            nameLength = nameLength - (strlen(fnext(baseName)) + 1 /* the dot */) ;
-        }
-    }
-
-    // copy library name
-    library->basename = calloc(1, nameLength + 1 /* EOS */);
-    memccpy(library->basename, baseName, '\0', nameLength);
-
-    if (fnext(baseName)) {
-        extLength = strlen(fnext(baseName)) + 1 /* the dot */;
-    } else {
-        extLength = ARCHIVE_EXTENSION_LENGTH;
-    }
-
-    // copy library extension
-    library->extension = calloc(1, extLength + 1 /* EOS */);
-    if (fnext(baseName)) {
-        memccpy(library->extension, fnext(baseName), '\0', extLength);
-    } else {
-        memccpy(library->extension, ARCHIVE_EXTENSION, '\0', extLength);
-    }
-
-    // creating full name
-    fullLength = pathLength + nameLength + extLength + 1 /* the DOT */;
-
-    library->fullname = calloc( 1, fullLength + 1 /* EOS */);
-
-    // needed for arithmetics
-    cpyPtr = library->fullname;
-
-    memcpy(cpyPtr, library->path, pathLength);
-    cpyPtr += pathLength;
-
-    memcpy(cpyPtr, library->basename, nameLength);
-    cpyPtr += nameLength;
-
-    memcpy(cpyPtr, ".", 1);
-    cpyPtr++;
-
-    memcpy(cpyPtr, library->extension, extLength);
-
-    if (access(library->fullname, F_OK) == 0) {
-        library->exists = TRUE;
-    } else {
-        library->exists = FALSE;
-    }
-
-    if (verboseFlag) {
-        fprintf(stdout, "VFILE created for '%s' \n", library->fullname);
-    }
-
 }

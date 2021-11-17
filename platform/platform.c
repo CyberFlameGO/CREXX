@@ -5,6 +5,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+
+#include "platform.h"
 
 /*
  * Read a file into a returned buffer
@@ -57,20 +60,8 @@ FILE *openfile(char *name, char *type, char *dir, char *mode) {
 }
 
 /*
- * Function checks wether the file name contains an extension or not.
- */
-int filename_has_ext(const char *file_name) {
-    const char *dot = strrchr(file_name, '.');
-
-    if(!dot || dot == file_name) {
-        return 0;
-    } else {
-        return 1;
-    }
-}
-/*
  * Function returns the extension part of a file name, if present.
- * Otherwise, it returs NULL.
+ * Otherwise, it returns NULL.
  */
 const char *fnext(const char *file_name) {
     const char *dot = strrchr(file_name, '.');
@@ -79,5 +70,174 @@ const char *fnext(const char *file_name) {
         return NULL;
     } else {
         return dot + 1;
+    }
+}
+
+/*
+ * Function to create the internal VFILE structure from a given input file name.
+ */
+VFILE* vfnew(const char *inputName, VFILE *vfile, const char *defaultPath, const char *defaultExtension) {
+
+    size_t pathLength, basenameLength, extensionLength, fullLength;
+
+    const char *pathEndPtr, *baseName ;
+    char *cpyPtr;
+
+    if (inputName == NULL) {
+        fprintf(stderr, "Internal error while creating  VFILE structure. InputName is NULL!");
+        exit(42);
+    }
+
+    // find last file separator
+    pathEndPtr = strrchr(inputName, FILE_SEPARATOR);
+
+    // path present
+    if (pathEndPtr > 0) {
+
+        // save the real pointer to basename
+        baseName = pathEndPtr + 1;
+
+        pathLength = baseName - inputName;
+
+        // copy library path
+        vfile->path = calloc(1, pathLength + 1 /* EOS */);
+        memcpy(vfile->path, inputName, pathLength);
+
+    } else {
+        // default path given
+        if (defaultPath) {
+            pathLength = strlen(defaultPath);
+
+            // check for trailing file separator and append if necessary
+            if (defaultPath[pathLength - 1] != FILE_SEPARATOR) {
+                pathLength++;
+            }
+
+            vfile->path = calloc(1, pathLength + 1 /* EOS */);
+
+            memcpy(vfile->path, defaultPath, pathLength);
+
+            // make sure path ends with a file separator
+            vfile->path[pathLength - 1] = FILE_SEPARATOR;
+
+        } else {
+            // to hold "./"
+            pathLength = 2;
+
+            vfile->path = calloc(1, pathLength + 1 /* EOS */);
+            snprintf(vfile->path, pathLength + 1, "%c%c", '.', FILE_SEPARATOR);
+        }
+
+        baseName = inputName;
+    }
+
+    basenameLength = strlen(baseName);
+    if ((baseName)) {
+        if (fnext(baseName)) {
+            basenameLength = basenameLength - (strlen(fnext(baseName)) + 1 /* the dot */) ;
+        }
+    }
+
+    // copy library name
+    vfile->basename = calloc(1, basenameLength + 1 /* EOS */);
+    memcpy(vfile->basename, baseName, basenameLength);
+
+    if (fnext(baseName)) {
+        extensionLength = strlen(fnext(baseName)) + 1 /* the dot */;
+    } else {
+        extensionLength = strlen(defaultExtension);
+    }
+
+    // copy library extension
+    vfile->extension = calloc(1, extensionLength + 1 /* EOS */);
+    if (fnext(baseName)) {
+        memcpy(vfile->extension, fnext(baseName), extensionLength);
+    } else {
+        memcpy(vfile->extension, defaultExtension, extensionLength);
+    }
+
+    // creating full name
+    fullLength = pathLength + basenameLength + extensionLength + 1 /* the DOT */;
+
+    vfile->fullname = calloc( 1, fullLength + 1 /* EOS */);
+
+    // needed for arithmetics
+    cpyPtr = vfile->fullname;
+
+    memcpy(cpyPtr, vfile->path, pathLength);
+    cpyPtr += pathLength;
+
+    memcpy(cpyPtr, vfile->basename, basenameLength);
+    cpyPtr += basenameLength;
+
+    memcpy(cpyPtr, ".", 1);
+    cpyPtr++;
+
+    memcpy(cpyPtr, vfile->extension, extensionLength);
+
+    if (access(vfile->fullname, F_OK) == 0) {
+        vfile->exists = 1;
+    } else {
+        vfile->exists = 0;
+    }
+
+    return vfile;
+}
+
+/*
+ * Function to open a VFILE in given mode.
+ * mode - is the fopen() file mode
+ */
+VFILE* vfopen(VFILE *vfile, char *mode) {
+    if (vfile) {
+        vfile->fp = fopen(vfile->fullname, mode);
+
+        if (vfile->fp) {
+            vfile->exists = 1;
+            vfile->opened = 1;
+        }
+    }
+
+    return vfile;
+}
+
+/*
+ * Function to close a VFILE.
+ */
+void vfclose(VFILE *vfile) {
+    if (vfile) {
+        if (vfile->fp) {
+            if (ftell(vfile->fp) >= 0) {
+                fclose(vfile->fp);
+                vfile->opened = 0;
+            }
+        }
+    }
+}
+
+/*
+ * Function to close an eventually open file pointer and
+ * free all allocated memory for given VFILE structure.
+ */
+void vffree(VFILE *vfile) {
+    if (vfile) {
+
+        vfclose(vfile);
+
+        if (vfile->path) {
+            free(vfile->path);
+        }
+
+        if(vfile->basename) {
+            free(vfile->basename);
+        }
+
+        if (vfile->extension) {
+            free(vfile->extension);
+        }
+
+        if (vfile->fullname) {
+            free(vfile->fullname);
+        }
     }
 }
