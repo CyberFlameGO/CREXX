@@ -222,14 +222,14 @@ VFILE* vfnew(const char *inputName, VFILE *vfile, const char *defaultPath, const
         HANDLE fileHandle;
         WIN32_FIND_DATA ffd;
 
-        fileHandle = FindFirstFile("./*.rxbin", &ffd);
+        fileHandle = FindFirstFile(vfile->fullname, &ffd);
 
         if (INVALID_HANDLE_VALUE == fileHandle)
             printf("Invalid File Handle Value \n");
 
         do
         {
-            printf("%s\n", ffd.cFileName);
+            fprintf(stdout,"DEBUG> %s\n", ffd.cFileName);
         } while (FindNextFile(fileHandle, &ffd) != 0);
 #endif
     }
