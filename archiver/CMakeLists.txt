@@ -9,7 +9,8 @@ add_executable(rxar
         rxaradd.c   rxaradd.h
         rxarlist.c  rxarlist.h
         rxardel.c   rxardel.h
-        rxlntest.c  rxlntest.h)
+        rxarutil.c  rxarutil.h
+        rxlntest.c  rxlntest.h queue.c queue.h)
 
 target_link_libraries(rxar avl_tree common platform)
 

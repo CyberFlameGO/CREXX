@@ -1,9 +1,15 @@
 #ifndef CREXX_TYPES_H
 #define CREXX_TYPES_H
 
-#define FALSE 0
-#define TRUE  1
-typedef unsigned char BOOL;
+#ifndef BOOL
+# define FALSE 0
+# define TRUE  1
+  typedef unsigned char BOOL;
+#endif
+
+#ifndef BVYTE
+  typedef unsigned char BYTE;
+#endif
 
 #define REXX_EXT    "rexx"
 #define RXAS_EXT    "rxas"
