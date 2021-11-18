@@ -292,13 +292,16 @@ void vffree(VFILE *vfile) {
 static int hasWildcards(const char *fileName) {
     int hasWildcard;
 
+    char tilde        = '~';
     char questionMark = '?';
     char asterisk     = '*';
     char oBracket     = '[';
     char cBracket     = ']';
 
-    hasWildcard = strchr(fileName, questionMark) != NULL;
+    hasWildcard = strchr(fileName, tilde) != NULL;
 
+    if (!hasWildcard)
+        hasWildcard = strchr(fileName, questionMark) != NULL;
     if (!hasWildcard)
         hasWildcard = strchr(fileName, asterisk) != NULL;
     if (!hasWildcard)

@@ -62,7 +62,7 @@ int addBinaries(VFILE *library, VFILE *binaries) {
 
                             binProcName = dequeue(qprocs);
 
-                            fprintf(stdout, "AAA\t\t\t- '%s' \n", binProcName->pname);
+                            fprintf(stdout, "\t\t\t- '%s' \n", binProcName->pname);
 
                             fwrite(binProcName, binProcName->pnlen + 2, 1, library->fp);
                         }
