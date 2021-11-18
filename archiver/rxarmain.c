@@ -53,6 +53,7 @@ int main(int argc, char *argv[]) {
                     // insert new VFILE element in last element
                     last->next = current;
                 }
+
                 current = vfnew(argv[optind], current, NULL, RXBIN_EXT);
 
                 // find last VFILE
@@ -62,7 +63,7 @@ int main(int argc, char *argv[]) {
 
                 // save last VFILE element to insert new one
                 // point to the next free slot
-                last = current;
+                last    = current;
                 current = last->next;
 
                 optind++;

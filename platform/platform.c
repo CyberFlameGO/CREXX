@@ -10,9 +10,6 @@
 #ifndef _WIN32
 # include <dirent.h>
 # include <glob.h>
-#else
-# include <windows.h>
-# include <fileapi.h>
 #endif
 
 
@@ -103,6 +100,13 @@ VFILE* vfnew(const char *inputName, VFILE *vfile, const char *defaultPath, const
         fprintf(stderr, "Internal error while creating  VFILE structure. InputName is NULL!");
         exit(42);
     }
+
+#ifdef _WIN32
+    if (hasWildcards(inputName)) {
+        fprintf(stderr, "Wildcards in PATH are not supported on this platform.");
+        exit(-1);
+    }
+#endif
 
     // find last file separator
     pathEndPtr = strrchr(inputName, FILE_SEPARATOR);
@@ -197,17 +201,16 @@ VFILE* vfnew(const char *inputName, VFILE *vfile, const char *defaultPath, const
         vfile->exists = 0;
     }
 
+#ifndef _WIN32
     if (hasWildcards(vfile->fullname)) {
 
-        VFILE *current;
+        int ii;
 
+        VFILE *current;
         current = vfile;
 
         // mark as wildcarded
         current->wildcarded = 1;
-
-#ifndef _WIN32
-        int ii;
 
         glob_t globResult;
 
@@ -218,21 +221,9 @@ VFILE* vfnew(const char *inputName, VFILE *vfile, const char *defaultPath, const
             current->next = vfnew(globResult.gl_pathv[ii], current->next, defaultPath, defaultExtension);
             current = current->next;
         }
-#else
-        HANDLE fileHandle;
-        WIN32_FIND_DATA ffd;
 
-        fileHandle = FindFirstFile(vfile->fullname, &ffd);
-
-        if (INVALID_HANDLE_VALUE == fileHandle)
-            printf("Invalid File Handle Value \n");
-
-        do
-        {
-            fprintf(stdout,"DEBUG> %s\n", ffd.cFileName);
-        } while (FindNextFile(fileHandle, &ffd) != 0);
-#endif
     }
+#endif
 
     return vfile;
 }
