@@ -51,21 +51,66 @@ QUEUE* findImportedProcedures(VFILE *vfile, QUEUE **procnames) {
     chameleon_constant  *c_entry;
     proc_constant       *p_entry;
 
+    size_t procedures = 0;
+
     loadModule(vfile, &program);
 
-    while (ii < program.segment.const_size) {
-        c_entry = (chameleon_constant *) (program.segment.const_pool + ii);
+    if (program.loaded) {
+        // first iteration to count exposed procedures
+        while (ii < program.segment.const_size) {
+            c_entry = (chameleon_constant *) (program.segment.const_pool + ii);
 
-        if (c_entry->type == EXPOSE_PROC_CONST) {
-            p_entry = (proc_constant *) (program.segment.const_pool + ((expose_proc_constant *) c_entry) ->procedure);
-
-            if (((expose_proc_constant *) c_entry)->imported) {
-                fprintf(stdout, "Found imported procedure '%s' \n", p_entry->name);
+            if (c_entry->type == EXPOSE_PROC_CONST) {
+                if (((expose_proc_constant *) c_entry)->imported) {
+                    procedures++;
+                }
             }
+
+            ii += c_entry->size_in_pool;
         }
 
-        ii += c_entry->size_in_pool;
+        // allocate queue
+        *procnames = newqueue(procedures);
+
+        // reset counter
+        ii = 0;
+
+        // second iteration fill queue with procedure names
+        while (ii < program.segment.const_size) {
+            c_entry = (chameleon_constant *) (program.segment.const_pool + ii);
+
+            if (c_entry->type == EXPOSE_PROC_CONST) {
+                //p_entry = (proc_constant *) (program.segment.const_pool + ((expose_proc_constant *) c_entry) ->procedure);
+
+                if (((expose_proc_constant *) c_entry)->imported) {
+                    RXLIB_BIN_PROC_NAME *procs_entry;
+
+/*
+                    procs_entry = malloc(sizeof(RXLIB_BIN_PROC_NAME) + strlen(p_entry->name));
+                    procs_entry->pnlen = (short) strlen(p_entry->name);
+                    strcpy(procs_entry->pname, p_entry->name);
+*/
+
+                    procs_entry = malloc(sizeof(RXLIB_BIN_PROC_NAME) +
+                                         strlen(((expose_proc_constant *) c_entry)->index));
+                    procs_entry->pnlen = (short) strlen(((expose_proc_constant *) c_entry)->index);
+
+                    strcpy(procs_entry->pname, ((expose_proc_constant *) c_entry)->index);
+
+                    enqueue(*procnames, procs_entry);
+                }
+            }
+
+            ii += c_entry->size_in_pool;
+        }
+
+        unloadModule(&program);
+
+        return *procnames;
+    } else {
+        return NULL;
     }
+
 }
 
 QUEUE* findExposedProcedures(VFILE *vfile, QUEUE **procnames) {
@@ -106,15 +151,22 @@ QUEUE* findExposedProcedures(VFILE *vfile, QUEUE **procnames) {
             c_entry = (chameleon_constant *) (program.segment.const_pool + ii);
 
             if (c_entry->type == EXPOSE_PROC_CONST) {
-                p_entry = (proc_constant *) (program.segment.const_pool + ((expose_proc_constant *) c_entry) ->procedure);
+                //p_entry = (proc_constant *) (program.segment.const_pool + ((expose_proc_constant *) c_entry) ->procedure);
 
                 if (!((expose_proc_constant *) c_entry)->imported) {
                     RXLIB_BIN_PROC_NAME *procs_entry;
 
+/*
                     procs_entry = malloc(sizeof(RXLIB_BIN_PROC_NAME) + strlen(p_entry->name));
                     procs_entry->pnlen = (short) strlen(p_entry->name);
-
                     strcpy(procs_entry->pname, p_entry->name);
+*/
+
+                    procs_entry = malloc(sizeof(RXLIB_BIN_PROC_NAME) +
+                            strlen(((expose_proc_constant *) c_entry)->index));
+                    procs_entry->pnlen = (short) strlen(((expose_proc_constant *) c_entry)->index);
+
+                    strcpy(procs_entry->pname, ((expose_proc_constant *) c_entry)->index);
 
                     enqueue(*procnames, procs_entry);
                 }
