@@ -34,49 +34,49 @@ int addBinaries(VFILE *library, VFILE *binaries) {
                 if (binaries->exists) {
 
                     VFILE *currentBinary;
-
                     RXLIB_BIN_HEADER   binHeader;
+                    QUEUE *qprocs;
+                    BYTE binHeaderSig[4] = RXLIB_FILE_HEADER_SIG;
 
-                    fprintf(stdout, "\t\t- '%s' \n", binaries->fullname);
+                    currentBinary = binaries;
+
+                    fprintf(stdout, "\t\t- '%s' \n", currentBinary->fullname);
+
+                    memcpy(&binHeader.sig, binHeaderSig, sizeof(binHeaderSig));
+
+                    binHeader.fnlength = (short) strlen(currentBinary->basename);
+                    // will be written later
+                    binHeader.pnlength = 0;
+
+                    fwrite(&binHeader, sizeof(RXLIB_BIN_HEADER), 1, library->fp);
+                    fwrite(currentBinary->basename, binHeader.fnlength, 1, library->fp);
+
+                    qprocs = findExposedProcedures(currentBinary, &qprocs);
+
+                    fprintf(stdout, "\t\t  Exposed procedures: \n");
+
+                    while (!isEmpty(qprocs)) {
+                        RXLIB_BIN_PROC_NAME *binProcName;
+
+                        binProcName = dequeue(qprocs);
+
+                        fprintf(stdout, "\t\t\t- '%s' \n", binProcName->pname);
+
+                        fwrite(binProcName, binProcName->pnlen + 2, 1, library->fp);
+                    }
 
                     currentBinary = vfopen(binaries, "rb");
                     if (currentBinary->opened) {
-                        QUEUE *qprocs;
-                        BYTE binHeaderSig[4] = RXLIB_FILE_HEADER_SIG;
+                        int ch;
 
-                        memcpy(&binHeader.sig, binHeaderSig, sizeof(binHeaderSig));
+                        while((ch = fgetc(currentBinary->fp)) != EOF)
+                            fputc(ch, library->fp);
 
-                        binHeader.fnlength = (short) strlen(currentBinary->basename);
-                        // will be written later
-                        binHeader.pnlength = 0;
-
-                        fwrite(&binHeader, sizeof(RXLIB_BIN_HEADER), 1, library->fp);
-                        fwrite(currentBinary->basename, binHeader.fnlength, 1, library->fp);
-
-                        qprocs = findExposedProcedures(currentBinary, &qprocs);
-
-                        fprintf(stdout, "\t\t  Exposed procedures: \n");
-
-                        while (!isEmpty(qprocs)) {
-                            RXLIB_BIN_PROC_NAME *binProcName;
-
-                            binProcName = dequeue(qprocs);
-
-                            fprintf(stdout, "\t\t\t- '%s' \n", binProcName->pname);
-
-                            fwrite(binProcName, binProcName->pnlen + 2, 1, library->fp);
-                        }
-
-                        {
-                            int ch;
-                            while((ch = fgetc(currentBinary->fp)) != EOF)
-                                fputc(ch, library->fp);
-                        }
-
-                        // cleanup
-                        freequeue(qprocs);
                         vfclose(currentBinary);
                     }
+
+                    // cleanup
+                    freequeue(qprocs);
 
                 } else {
                     fprintf(stderr, "WARN: File '%s' did not exists. \n", binaries->fullname);
